@@ -1,4 +1,5 @@
 #include <Encoder.h>
+#include <EEPROM.h>
 
 // Encoder inputs (One of these two have to be a interrupt pin )
 #define encoderPinA 3
@@ -15,6 +16,7 @@
 Encoder encoder(encoderPinA, encoderPinB);
 
 long encoderPosition = 0;
+long encoderPositionAddress = 0;
 
 int btn1LastState = LOW;
 int btn1CurrentState;
@@ -29,7 +31,12 @@ boolean wasBtn2LongActionCalled = false;
 int counter = 0;
 
 const unsigned long DEBUNCE_TIME = 50;
+const unsigned long DELAY_BEFORE_ENCODER_SAVE_POSITION = 100;
+const unsigned long SAVE_ENCODER_POSITION_AFTER_TIME = 50;
 const unsigned long LONG_PRESS_TIME = 1500;
+
+long lastEncoderMovementTiemestamp = 0;
+long lastEncoderPositionStoredInEeprom;
 
 void setup()
 {
@@ -37,6 +44,8 @@ void setup()
   pinMode(ledCW, OUTPUT);
   pinMode(btn1, INPUT_PULLUP);
   pinMode(btn2, INPUT_PULLUP);
+  EEPROM.get(encoderPositionAddress, lastEncoderPositionStoredInEeprom);
+  encoder.write(lastEncoderPositionStoredInEeprom);
 
   Serial.begin(9600);
 }
@@ -55,6 +64,8 @@ void loop()
       Serial.println("reset");
       Serial.println("-----------------------------");
       encoder.write(0);
+      encoder.write(0);
+      EEPROM.put(encoderPositionAddress, encoder.read());
       counter = 0;
     }
   }
@@ -65,6 +76,7 @@ void loop()
   long newEncoderPosition = encoder.read();
   if (newEncoderPosition != encoderPosition)
   {
+    lastEncoderMovementTiemestamp = millis();
     if (newEncoderPosition < encoderPosition)
     {
 
@@ -79,6 +91,14 @@ void loop()
     encoderPosition = newEncoderPosition;
     Serial.print("Value:");
     Serial.println(encoderPosition);
+  }
+
+  // Saving encoder position
+  EEPROM.get(encoderPositionAddress, lastEncoderPositionStoredInEeprom);
+  if (millis() - lastEncoderMovementTiemestamp > DELAY_BEFORE_ENCODER_SAVE_POSITION && encoderPosition != lastEncoderPositionStoredInEeprom)
+  {
+    Serial.println("Encoder poisition saved");
+    EEPROM.put(encoderPositionAddress, encoderPosition);
   }
 
   // Handling Btns states
