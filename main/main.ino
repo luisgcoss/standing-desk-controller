@@ -64,6 +64,8 @@ void loop()
       Serial.println("reset");
       Serial.println("-----------------------------");
       encoder.write(0);
+      encoder.write(0);
+      EEPROM.put(encoderPositionAddress, encoder.read());
       counter = 0;
     }
   }
