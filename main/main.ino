@@ -10,8 +10,8 @@
 #define btn2 7
 
 // LED Outputs
-#define ledCW 8
-#define ledCCW 9
+#define ledGreen 8
+#define ledRed 9
 
 Encoder encoder(encoderPinA, encoderPinB);
 
@@ -28,8 +28,6 @@ int btn2CurrentState;
 unsigned long btn2LastTimePressedTimestamp;
 boolean wasBtn2LongActionCalled = false;
 
-int counter = 0;
-
 const unsigned long DEBUNCE_TIME = 50;
 const unsigned long DELAY_BEFORE_ENCODER_SAVE_POSITION = 100;
 const unsigned long SAVE_ENCODER_POSITION_AFTER_TIME = 50;
@@ -38,14 +36,43 @@ const unsigned long LONG_PRESS_TIME = 1500;
 long lastEncoderMovementTiemestamp = 0;
 long lastEncoderPositionStoredInEeprom;
 
+int EEPROMisCalibratedAddrees = 250;
+
+void toogleCalibrated()
+{
+  if (EEPROM.read(EEPROMisCalibratedAddrees))
+  {
+    EEPROM.write(EEPROMisCalibratedAddrees, false);
+    digitalWrite(ledGreen, LOW);
+    digitalWrite(ledRed, HIGH);
+  }
+  else
+  {
+    EEPROM.write(EEPROMisCalibratedAddrees, true);
+    digitalWrite(ledGreen, HIGH);
+    digitalWrite(ledRed, LOW);
+  }
+}
+
 void setup()
 {
-  pinMode(ledCCW, OUTPUT);
-  pinMode(ledCW, OUTPUT);
+  pinMode(ledRed, OUTPUT);
+  pinMode(ledGreen, OUTPUT);
   pinMode(btn1, INPUT_PULLUP);
   pinMode(btn2, INPUT_PULLUP);
   EEPROM.get(encoderPositionAddress, lastEncoderPositionStoredInEeprom);
   encoder.write(lastEncoderPositionStoredInEeprom);
+
+  if (EEPROM.read(EEPROMisCalibratedAddrees))
+  {
+    digitalWrite(ledGreen, HIGH);
+    digitalWrite(ledRed, LOW);
+  }
+  else
+  {
+    digitalWrite(ledGreen, LOW);
+    digitalWrite(ledRed, HIGH);
+  }
 
   Serial.begin(9600);
 }
@@ -66,7 +93,6 @@ void loop()
       encoder.write(0);
       encoder.write(0);
       EEPROM.put(encoderPositionAddress, encoder.read());
-      counter = 0;
     }
   }
 
@@ -77,17 +103,6 @@ void loop()
   if (newEncoderPosition != encoderPosition)
   {
     lastEncoderMovementTiemestamp = millis();
-    if (newEncoderPosition < encoderPosition)
-    {
-
-      digitalWrite(ledCW, LOW);
-      digitalWrite(ledCCW, HIGH);
-    }
-    else
-    {
-      digitalWrite(ledCW, HIGH);
-      digitalWrite(ledCCW, LOW);
-    }
     encoderPosition = newEncoderPosition;
     Serial.print("Value:");
     Serial.println(encoderPosition);
@@ -118,11 +133,8 @@ void loop()
 
       if (elapsedTime > 50 && elapsedTime < LONG_PRESS_TIME)
       {
-        counter++;
-        Serial.print("btn1 short action called, Count: ");
-        Serial.println(counter);
-        encoder.write(0);
-        EEPROM.put(encoderPositionAddress, encoder.read());
+        Serial.println("btn1 short action called");
+        toogleCalibrated();
       }
     }
     btn1LastState = btn1CurrentState;
@@ -147,12 +159,7 @@ void loop()
 
       if (elapsedTime > 50 && elapsedTime < LONG_PRESS_TIME)
       {
-        counter--;
-        Serial.print("btn2 short action called, Count: ");
-        Serial.println(counter);
-        Serial.print(encoderPosition);
-        Serial.print(" , ");
-        Serial.println(lastEncoderPositionStoredInEeprom);
+        Serial.println("btn2 short action called");
       }
     }
     btn2LastState = btn2CurrentState;
