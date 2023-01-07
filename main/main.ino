@@ -18,20 +18,23 @@ Encoder encoder(encoderPinA, encoderPinB);
 long encoderPosition = 0;
 long encoderPositionAddress = 0;
 
-int btn1LastState = LOW;
 int btn1CurrentState;
-unsigned long btn1LastTimePressedTimestamp;
+int btn1LastState = LOW;
 boolean wasBtn1LongActionCalled = false;
+unsigned long btn1LastTimePressedTimestamp;
+long btn1ElapsedTimeSinceLastTimePressed = 0;
 
-int btn2LastState = LOW;
 int btn2CurrentState;
-unsigned long btn2LastTimePressedTimestamp;
+int btn2LastState = LOW;
 boolean wasBtn2LongActionCalled = false;
+unsigned long btn2LastTimePressedTimestamp;
+long btn2ElapsedTimeSinceLastTimePressed = 0;
 
 const unsigned long DEBUNCE_TIME = 50;
-const unsigned long DELAY_BEFORE_ENCODER_SAVE_POSITION = 100;
+const unsigned long LONG_PRESS_TIME = 2000;
 const unsigned long SAVE_ENCODER_POSITION_AFTER_TIME = 50;
-const unsigned long LONG_PRESS_TIME = 1500;
+const unsigned long DELAY_BEFORE_ENCODER_SAVE_POSITION = 100;
+const unsigned long DELAY_BETWEEN_BT1_AND_BT2_LAST_TIME_PRESSED_TO_TOGGLE_CALIBRATION_MODE = 200;
 
 long lastEncoderMovementTiemestamp = 0;
 long lastEncoderPositionStoredInEeprom;
@@ -91,13 +94,11 @@ void loop()
       Serial.println("reset");
       Serial.println("-----------------------------");
       encoder.write(0);
-      encoder.write(0);
       EEPROM.put(encoderPositionAddress, encoder.read());
     }
   }
 
   // Handling encoder
-  // ---------------------------
 
   long newEncoderPosition = encoder.read();
   if (newEncoderPosition != encoderPosition)
@@ -109,6 +110,7 @@ void loop()
   }
 
   // Saving encoder position
+
   EEPROM.get(encoderPositionAddress, lastEncoderPositionStoredInEeprom);
   if (millis() - lastEncoderMovementTiemestamp > DELAY_BEFORE_ENCODER_SAVE_POSITION && encoderPosition != lastEncoderPositionStoredInEeprom)
   {
@@ -117,9 +119,9 @@ void loop()
   }
 
   // Handling Btns states
-  // ---------------------------
 
   // Btn1
+  btn1ElapsedTimeSinceLastTimePressed = millis() - btn1LastTimePressedTimestamp;
   if (btn1LastState != btn1CurrentState)
   {
     if (btn1CurrentState == LOW)
@@ -129,9 +131,8 @@ void loop()
     }
     else
     {
-      long elapsedTime = millis() - btn1LastTimePressedTimestamp;
 
-      if (elapsedTime > 50 && elapsedTime < LONG_PRESS_TIME)
+      if (btn1ElapsedTimeSinceLastTimePressed > DEBUNCE_TIME && btn1ElapsedTimeSinceLastTimePressed < LONG_PRESS_TIME)
       {
         Serial.println("btn1 short action called");
         toogleCalibrated();
@@ -139,13 +140,14 @@ void loop()
     }
     btn1LastState = btn1CurrentState;
   }
-  else if (btn1LastState == LOW && millis() - btn1LastTimePressedTimestamp > LONG_PRESS_TIME && !wasBtn1LongActionCalled)
+  else if (btn1LastState == LOW && btn1ElapsedTimeSinceLastTimePressed > LONG_PRESS_TIME && !wasBtn1LongActionCalled)
   {
     wasBtn1LongActionCalled = true;
     Serial.println("btn1 long action called");
   }
 
   // Btn2
+  btn2ElapsedTimeSinceLastTimePressed = millis() - btn2LastTimePressedTimestamp;
   if (btn2LastState != btn2CurrentState)
   {
     if (btn2CurrentState == LOW)
@@ -155,18 +157,25 @@ void loop()
     }
     else
     {
-      long elapsedTime = millis() - btn2LastTimePressedTimestamp;
-
-      if (elapsedTime > 50 && elapsedTime < LONG_PRESS_TIME)
+      if (btn2ElapsedTimeSinceLastTimePressed > DEBUNCE_TIME && btn2ElapsedTimeSinceLastTimePressed < LONG_PRESS_TIME)
       {
         Serial.println("btn2 short action called");
       }
     }
     btn2LastState = btn2CurrentState;
   }
-  else if (btn2LastState == LOW && millis() - btn2LastTimePressedTimestamp > LONG_PRESS_TIME && !wasBtn2LongActionCalled)
+  else if (btn2LastState == LOW && btn2ElapsedTimeSinceLastTimePressed > LONG_PRESS_TIME && !wasBtn2LongActionCalled)
   {
+    if (
+        btn1LastState == LOW && btn1ElapsedTimeSinceLastTimePressed > (LONG_PRESS_TIME - DELAY_BETWEEN_BT1_AND_BT2_LAST_TIME_PRESSED_TO_TOGGLE_CALIBRATION_MODE))
+    {
+      wasBtn1LongActionCalled = true;
+      Serial.println("btn1 and btn2 long action called");
+    }
+    else
+    {
+      Serial.println("btn2 long action called");
+    }
     wasBtn2LongActionCalled = true;
-    Serial.println("btn2 long action called");
   }
 }
