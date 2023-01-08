@@ -9,7 +9,16 @@
 - [ ] move desk on short press
 - [ ] cancel desk movement if a button is pressed
 - [ ] calibrate mode
-- [ ] led to add semantic
+  - [x] handle calibration states
+  - [ ] calibrate no mather what position was storted first
+  - [ ] add calibration mode (difference between no calibrated and calibration mode)
+- [x] led to add semantic
+- [ ] make the led blink to add semantic
+
+## Perfomance
+
+- [ ] Reduce variables
+- [ ] Separation of concerns by files
 
 ## IoT version
 

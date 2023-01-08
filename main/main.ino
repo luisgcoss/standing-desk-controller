@@ -20,13 +20,13 @@ long encoderPositionAddress = 0;
 
 int btn1CurrentState;
 int btn1LastState = LOW;
-boolean wasBtn1LongActionCalled = false;
+bool wasBtn1LongActionCalled = false;
 unsigned long btn1LastTimePressedTimestamp;
 long btn1ElapsedTimeSinceLastTimePressed = 0;
 
 int btn2CurrentState;
 int btn2LastState = LOW;
-boolean wasBtn2LongActionCalled = false;
+bool wasBtn2LongActionCalled = false;
 unsigned long btn2LastTimePressedTimestamp;
 long btn2ElapsedTimeSinceLastTimePressed = 0;
 
@@ -39,26 +39,38 @@ const unsigned long DELAY_BETWEEN_BT1_AND_BT2_LAST_TIME_PRESSED_TO_TOGGLE_CALIBR
 long lastEncoderMovementTiemestamp = 0;
 long lastEncoderPositionStoredInEeprom;
 
-int EEPROMisCalibratedAddrees = 250;
+bool isCalibrated = false;
+int EEPROMisCalibratedAddress = 10;
+
+long lowestPosition = -100;
+long EEPROMLowestPositionAddrees = 20;
+
+long highestPosition = -100;
+long EEPROMHighestPositionAddrees = 30;
 
 void setCalibrated(bool calibrated)
 {
-  if (EEPROM.read(EEPROMisCalibratedAddrees) == calibrated)
+  if (EEPROM.read(EEPROMisCalibratedAddress) == calibrated)
     return;
 
   if (!calibrated)
   {
-    EEPROM.write(EEPROMisCalibratedAddrees, false);
-    digitalWrite(ledGreen, LOW);
     digitalWrite(ledRed, HIGH);
+    digitalWrite(ledGreen, LOW);
+
+    isCalibrated = false;
+    lowestPosition = -100;
+    highestPosition = -100;
+    EEPROM.write(EEPROMisCalibratedAddress, false);
+    Serial.println("----------SETTING_NO_CALIBRATED----------");
   }
   else
   {
-    EEPROM.write(EEPROMisCalibratedAddrees, true);
+    EEPROM.write(EEPROMisCalibratedAddress, true);
     digitalWrite(ledGreen, HIGH);
     digitalWrite(ledRed, LOW);
+    Serial.println("----------SETTING_CALIBRATED----------");
   }
-  Serial.println("----------WARNING_WRITING_IN_EPPROM----------");
 }
 
 void setup()
@@ -67,18 +79,24 @@ void setup()
   pinMode(ledGreen, OUTPUT);
   pinMode(btn1, INPUT_PULLUP);
   pinMode(btn2, INPUT_PULLUP);
+
   EEPROM.get(encoderPositionAddress, lastEncoderPositionStoredInEeprom);
   encoder.write(lastEncoderPositionStoredInEeprom);
 
-  if (EEPROM.read(EEPROMisCalibratedAddrees))
+  isCalibrated = EEPROM.read(EEPROMisCalibratedAddress);
+
+  if (isCalibrated)
   {
-    digitalWrite(ledGreen, HIGH);
     digitalWrite(ledRed, LOW);
+    digitalWrite(ledGreen, HIGH);
+
+    EEPROM.get(EEPROMLowestPositionAddrees, lowestPosition);
+    EEPROM.get(EEPROMHighestPositionAddrees, highestPosition);
   }
   else
   {
-    digitalWrite(ledGreen, LOW);
     digitalWrite(ledRed, HIGH);
+    digitalWrite(ledGreen, LOW);
   }
 
   Serial.begin(9600);
@@ -95,10 +113,9 @@ void loop()
     if (command.equals("reset"))
     {
       Serial.println("-----------------------------");
-      Serial.println("reset");
-      Serial.println("-----------------------------");
       encoder.write(0);
       EEPROM.put(encoderPositionAddress, encoder.read());
+      Serial.println("----------RESET_COMMAND----------");
     }
   }
 
@@ -109,6 +126,12 @@ void loop()
   {
     lastEncoderMovementTiemestamp = millis();
     encoderPosition = newEncoderPosition;
+
+    if (encoderPosition < lowestPosition || encoderPosition > highestPosition)
+    {
+      setCalibrated(false);
+    }
+
     Serial.print("Value:");
     Serial.println(encoderPosition);
   }
@@ -118,8 +141,8 @@ void loop()
   EEPROM.get(encoderPositionAddress, lastEncoderPositionStoredInEeprom);
   if (millis() - lastEncoderMovementTiemestamp > DELAY_BEFORE_ENCODER_SAVE_POSITION && encoderPosition != lastEncoderPositionStoredInEeprom)
   {
-    Serial.println("Encoder poisition saved");
     EEPROM.put(encoderPositionAddress, encoderPosition);
+    Serial.println("----------ENCODER_POSITION_SAVED----------");
   }
 
   // Handling Btns states
@@ -147,6 +170,22 @@ void loop()
   {
     wasBtn1LongActionCalled = true;
     Serial.println("btn1 long action called");
+
+    if (!isCalibrated)
+    {
+      // save desktop lowest position
+      encoder.write(0);
+      lowestPosition = 0;
+      encoderPosition = 0;
+      EEPROM.put(encoderPositionAddress, 0);
+      EEPROM.put(EEPROMLowestPositionAddrees, 0);
+      Serial.println("----------STORING_LOWEST_POSITION----------");
+
+      if (highestPosition != -100 && highestPosition > lowestPosition)
+      {
+        setCalibrated(true);
+      }
+    }
   }
 
   // Btn2
@@ -179,6 +218,19 @@ void loop()
     else
     {
       Serial.println("btn2 long action called");
+
+      if (!isCalibrated)
+      {
+        // save desktop highest position
+        EEPROM.put(EEPROMHighestPositionAddrees, encoderPosition);
+        highestPosition = encoderPosition;
+        Serial.println("----------STORING_HIGHEST_POSITION----------");
+
+        if (lowestPosition == 0)
+        {
+          setCalibrated(true);
+        }
+      }
     }
     wasBtn2LongActionCalled = true;
   }
