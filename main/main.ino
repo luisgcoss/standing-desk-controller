@@ -41,9 +41,12 @@ long lastEncoderPositionStoredInEeprom;
 
 int EEPROMisCalibratedAddrees = 250;
 
-void toogleCalibrated()
+void setCalibrated(bool calibrated)
 {
-  if (EEPROM.read(EEPROMisCalibratedAddrees))
+  if (EEPROM.read(EEPROMisCalibratedAddrees) == calibrated)
+    return;
+
+  if (!calibrated)
   {
     EEPROM.write(EEPROMisCalibratedAddrees, false);
     digitalWrite(ledGreen, LOW);
@@ -55,6 +58,7 @@ void toogleCalibrated()
     digitalWrite(ledGreen, HIGH);
     digitalWrite(ledRed, LOW);
   }
+  Serial.println("----------WARNING_WRITING_IN_EPPROM----------");
 }
 
 void setup()
@@ -135,12 +139,11 @@ void loop()
       if (btn1ElapsedTimeSinceLastTimePressed > DEBUNCE_TIME && btn1ElapsedTimeSinceLastTimePressed < LONG_PRESS_TIME)
       {
         Serial.println("btn1 short action called");
-        toogleCalibrated();
       }
     }
     btn1LastState = btn1CurrentState;
   }
-  else if (btn1LastState == LOW && btn1ElapsedTimeSinceLastTimePressed > LONG_PRESS_TIME && !wasBtn1LongActionCalled)
+  else if (btn1LastState == LOW && btn2LastState == HIGH && btn1ElapsedTimeSinceLastTimePressed > LONG_PRESS_TIME && !wasBtn1LongActionCalled)
   {
     wasBtn1LongActionCalled = true;
     Serial.println("btn1 long action called");
@@ -171,6 +174,7 @@ void loop()
     {
       wasBtn1LongActionCalled = true;
       Serial.println("btn1 and btn2 long action called");
+      setCalibrated(false);
     }
     else
     {
