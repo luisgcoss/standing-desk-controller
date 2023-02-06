@@ -10,7 +10,7 @@
 - [ ] cancel desk movement if a button is pressed
 - [ ] calibrate mode
   - [x] handle calibration states
-  - [ ] calibrate no mather what position was storted first
+  - [x] calibrate no mather what position was storted first
   - [ ] add calibration mode (difference between no calibrated and calibration mode)
 - [x] led to add semantic
 - [ ] make the led blink to add semantic
