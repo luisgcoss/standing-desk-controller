@@ -1,7 +1,7 @@
 #include <Encoder.h>
 #include <EEPROM.h>
 
-// Encoder inputs (One of these two have to be a interrupt pin )
+// Encoder inputs (One of these two have to be an interrupt pin )
 #define encoderPinA 3
 #define encoderPinB 2
 
@@ -43,14 +43,14 @@ bool isCalibrated = false;
 
 struct calibrationAux
 {
-  long encoderPosition;
+  long value;
   bool isCalibrated;
 };
 
-calibrationAux calibrationAuxA = {encoderPosition : 0, isCalibrated : false};
-calibrationAux calibrationAuxB = {encoderPosition : 0, isCalibrated : false};
+calibrationAux calibrationAuxA = {value : 0, isCalibrated : false};
+calibrationAux calibrationAuxB = {value : 0, isCalibrated : false};
 
-long motionRange;
+long motionRange = 0;
 long EEPROMMotionRangeAddress = 20;
 
 void setNotCalibrated()
@@ -59,9 +59,9 @@ void setNotCalibrated()
   digitalWrite(ledGreen, LOW);
 
   isCalibrated = false;
-  calibrationAuxA = {encoderPosition : 0, isCalibrated : false};
-  calibrationAuxB = {encoderPosition : 0, isCalibrated : false};
-  EEPROM.write(EEPROMMotionRangeAddress, -100);
+  calibrationAuxA = {value : 0, isCalibrated : false};
+  calibrationAuxB = {value : 0, isCalibrated : false};
+  EEPROM.put(EEPROMMotionRangeAddress, -100);
   Serial.println("----------SETTING_NO_CALIBRATED----------");
 }
 
@@ -69,7 +69,7 @@ void setCalibrated(long range)
 {
   motionRange = range;
   isCalibrated = true;
-  EEPROM.write(EEPROMMotionRangeAddress, range);
+  EEPROM.put(EEPROMMotionRangeAddress, range);
   digitalWrite(ledGreen, HIGH);
   digitalWrite(ledRed, LOW);
   Serial.println("----------SETTING_CALIBRATED----------");
@@ -85,22 +85,22 @@ void setup()
   EEPROM.get(encoderPositionAddress, lastEncoderPositionStoredInEeprom);
   encoder.write(lastEncoderPositionStoredInEeprom);
 
-  isCalibrated = EEPROM.read(EEPROMMotionRangeAddress) > 1000;
+  EEPROM.get(EEPROMMotionRangeAddress, motionRange);
+
+  isCalibrated = motionRange > 10;
+
+  Serial.begin(9600);
 
   if (isCalibrated)
   {
     digitalWrite(ledRed, LOW);
     digitalWrite(ledGreen, HIGH);
-
-    EEPROM.get(EEPROMMotionRangeAddress, motionRange);
   }
   else
   {
     digitalWrite(ledRed, HIGH);
     digitalWrite(ledGreen, LOW);
   }
-
-  Serial.begin(9600);
 }
 
 void loop()
@@ -180,9 +180,9 @@ void loop()
 
       if (calibrationAuxB.isCalibrated)
       {
-        long range = abs(calibrationAuxB.encoderPosition - calibrationAuxA.encoderPosition);
+        long range = abs(calibrationAuxB.value - calibrationAuxA.value);
 
-        if (calibrationAuxA.encoderPosition > calibrationAuxB.encoderPosition)
+        if (calibrationAuxA.value > calibrationAuxB.value)
         {
           encoder.write(range);
           encoderPosition = range;
@@ -236,9 +236,9 @@ void loop()
         if (calibrationAuxA.isCalibrated)
         {
 
-          long range = abs(calibrationAuxB.encoderPosition - calibrationAuxA.encoderPosition);
+          long range = abs(calibrationAuxB.value - calibrationAuxA.value);
 
-          if (calibrationAuxB.encoderPosition > calibrationAuxA.encoderPosition)
+          if (calibrationAuxB.value > calibrationAuxA.value)
           {
             encoder.write(range);
             encoderPosition = range;
