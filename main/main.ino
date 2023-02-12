@@ -9,6 +9,10 @@
 #define btn1 6
 #define btn2 7
 
+// Define buttons
+#define trigerLower 10
+#define trigerLift 11
+
 // LED Outputs
 #define ledGreen 8
 #define ledRed 9
@@ -39,7 +43,19 @@ const unsigned long DELAY_BETWEEN_BT1_AND_BT2_LAST_TIME_PRESSED_TO_TOGGLE_CALIBR
 long lastEncoderMovementTiemestamp = 0;
 long lastEncoderPositionStoredInEeprom;
 
+int movingStatus = 0; // 0 = to standby, 1 = Moving up , -1 = Moving down
+
 bool isCalibrated = false;
+
+long motionRange = 0;
+long EEPROMMotionRangeAddress = 20;
+
+long positionOne = 0;
+long EEPROMPositionOneAddress = 40;
+long positionTwo = 0;
+long EEPROMPositionTwoAddress = 60;
+
+long movingTo = 0;
 
 struct calibrationAux
 {
@@ -50,8 +66,40 @@ struct calibrationAux
 calibrationAux calibrationAuxA = {value : 0, isCalibrated : false};
 calibrationAux calibrationAuxB = {value : 0, isCalibrated : false};
 
-long motionRange = 0;
-long EEPROMMotionRangeAddress = 20;
+void moveToPosition(long targetPosition)
+{
+  if (!isCalibrated)
+  {
+    Serial.println("----------CAN_NOT_MOVE_NO_CALIBRATED----------");
+    return;
+  }
+
+  if (movingStatus != 0)
+  {
+    movingStatus = 0;
+    digitalWrite(trigerLift, LOW);
+    digitalWrite(trigerLower, LOW);
+    return;
+  }
+
+  if (targetPosition < 0 || targetPosition > motionRange)
+  {
+    Serial.println("----------CAN_NOT_MOVE_OUT_OF_RANGE----------");
+    return;
+  }
+
+  movingTo = targetPosition;
+  if (encoderPosition > targetPosition)
+  {
+    digitalWrite(trigerLower, HIGH);
+    movingStatus = -1;
+  }
+  else
+  {
+    movingStatus = 1;
+    digitalWrite(trigerLift, HIGH);
+  }
+}
 
 void setNotCalibrated()
 {
@@ -79,9 +127,13 @@ void setup()
 {
   pinMode(ledRed, OUTPUT);
   pinMode(ledGreen, OUTPUT);
+  pinMode(trigerLower, OUTPUT);
+  pinMode(trigerLift, OUTPUT);
   pinMode(btn1, INPUT_PULLUP);
   pinMode(btn2, INPUT_PULLUP);
 
+  EEPROM.get(EEPROMPositionOneAddress, positionOne);
+  EEPROM.get(EEPROMPositionTwoAddress, positionTwo);
   EEPROM.get(encoderPositionAddress, lastEncoderPositionStoredInEeprom);
   encoder.write(lastEncoderPositionStoredInEeprom);
 
@@ -148,6 +200,19 @@ void loop()
     Serial.println("----------ENCODER_POSITION_SAVED----------");
   }
 
+  // Handling movement
+
+  if (movingStatus > 0 && encoderPosition >= movingTo)
+  {
+    movingStatus = 0;
+    digitalWrite(trigerLift, LOW);
+  }
+  else if (movingStatus < 0 && encoderPosition <= movingTo)
+  {
+    movingStatus = 0;
+    digitalWrite(trigerLower, LOW);
+  }
+
   // Handling Btns states
 
   // Btn1
@@ -165,6 +230,7 @@ void loop()
       if (btn1ElapsedTimeSinceLastTimePressed > DEBUNCE_TIME && btn1ElapsedTimeSinceLastTimePressed < LONG_PRESS_TIME)
       {
         Serial.println("btn1 short action called");
+        moveToPosition(positionOne);
       }
     }
     btn1LastState = btn1CurrentState;
@@ -196,6 +262,12 @@ void loop()
         setCalibrated(range);
       }
     }
+    else
+    {
+      Serial.println("----------SAVING_POSITION_ONE----------");
+      EEPROM.put(EEPROMPositionOneAddress, encoderPosition);
+      positionOne = encoderPosition;
+    }
   }
 
   // Btn2
@@ -212,6 +284,7 @@ void loop()
       if (btn2ElapsedTimeSinceLastTimePressed > DEBUNCE_TIME && btn2ElapsedTimeSinceLastTimePressed < LONG_PRESS_TIME)
       {
         Serial.println("btn2 short action called");
+        moveToPosition(positionTwo);
       }
     }
     btn2LastState = btn2CurrentState;
@@ -251,6 +324,12 @@ void loop()
 
           setCalibrated(range);
         }
+      }
+      else
+      {
+        Serial.println("----------SAVING_POSITION_TWO----------");
+        EEPROM.put(EEPROMPositionTwoAddress, encoderPosition);
+        positionTwo = encoderPosition;
       }
     }
     wasBtn2LongActionCalled = true;
